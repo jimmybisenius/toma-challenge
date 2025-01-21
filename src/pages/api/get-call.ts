@@ -6,6 +6,16 @@ import client from '@/retell-client'
 import db from '@/db'
 import { CallResponse } from 'retell-sdk/resources/call.mjs';
 
+export type GetCallResults = {
+  oilChangePrice: string | undefined,
+  soonestServiceAppt: string | undefined,
+  holdTimeSeconds: number | undefined,
+  recordingUrl: string | undefined,
+  sentToVoicemail: boolean | undefined,
+  transcript: string | undefined,
+  callStatus: string | undefined
+}
+
 // TODO: fix transcript typing
 function calculateHoldTime(transcript: any[]): number {
   let totalHoldTime = 0;
@@ -39,9 +49,19 @@ function calculateHoldTime(transcript: any[]): number {
 }
 
 // TODO: Add sent to voicemail
-async function updatePhoneCall(callId: string, statusResponse: CallResponse): Promise<void> {
+async function updatePhoneCall(callId: string, statusResponse: CallResponse): Promise<GetCallResults> {
 
   const callAnalysis: any = { ...statusResponse.call_analysis }
+
+  const results: GetCallResults = {
+    oilChangePrice: callAnalysis.custom_analysis_data?.oil_change_price,
+    soonestServiceAppt: callAnalysis?.custom_analysis_data?.soonest_service_availability,
+    holdTimeSeconds: statusResponse.transcript_with_tool_calls ? calculateHoldTime(statusResponse.transcript_with_tool_calls) : undefined,
+    recordingUrl: statusResponse.recording_url,
+    sentToVoicemail: callAnalysis?.in_voicemail,
+    transcript: statusResponse.transcript,
+    callStatus: statusResponse.call_status
+  }
 
   await db.query(`
     UPDATE
@@ -59,19 +79,21 @@ async function updatePhoneCall(callId: string, statusResponse: CallResponse): Pr
     `
     , [
       // Oil change price
-      callAnalysis.custom_analysis_data?.oil_change_price,
+      results.oilChangePrice,
       // Soonest service appt
-      callAnalysis?.custom_analysis_data?.soonest_service_availability,
+      results.soonestServiceAppt,
       // Time spent on hold, in seconds
-      statusResponse.transcript_with_tool_calls ? calculateHoldTime(statusResponse.transcript_with_tool_calls) : undefined,
+      results.holdTimeSeconds,
       // Call recording Url
-      statusResponse.recording_url,
+      results.recordingUrl,
       // Sent to voicemail?
-      callAnalysis?.in_voicemail,
+      results.sentToVoicemail,
       // Transcript
-      statusResponse.transcript
+      results.transcript
       // (DO NOT PARAMS BELOW) Call ID
       , callId]);
+
+    return results
 }
 
 // Runs on /api/get-call
@@ -92,11 +114,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const statusResponse = await client.call.retrieve(callId);
 
     // Store updated status in DB
-    await updatePhoneCall(callId, statusResponse)
+    const results = await updatePhoneCall(callId, statusResponse)
     // TODO: (BONUS) Run this via web-hook on post call data analysis complete to auto-update db
 
     // Respond with the call ID
-    return res.status(200).json(statusResponse);
+    return res.status(200).json(results);
     
   } catch (error) {
     console.error('Error creating phone call:', error);

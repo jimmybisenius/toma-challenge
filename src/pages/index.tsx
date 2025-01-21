@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Head from 'next/head';
 import {phone} from 'phone';
 import axios from 'axios'
+import type { GetCallResults } from './api/get-call'
 
 type CallResults = {
   recordingUrl: string | undefined,
@@ -82,26 +83,27 @@ const Home = () => {
       while (callStatus !== 'ended' || !postCallData) {
         // Fetch the current status of the call
         // const statusResponse = await client.call.retrieve(callId);
-        const { data: statusResponse } = await axios.post('/api/get-call', {
+        const { data } = await axios.post('/api/get-call', {
           callId
         })
 
-        // Update the call status
-        callStatus = statusResponse.call_status;
+        // TODO: Fix typing
+        const statusUpdate: GetCallResults = data
+
+        // Update the call status, defaults to registered
+        callStatus = statusUpdate.callStatus || 'registered'
 
         if (callStatus === 'ended' || !postCallData) {
-          // Retrieve post-call data once the call has ended
-          postCallData = statusResponse.call_analysis;
 
-          if(postCallData) {
+          if(statusUpdate.transcript) {
              // Log status
             console.log("Post call analysis complete")
             console.log(postCallData)
 
             const results: CallResults = {
-              recordingUrl: statusResponse.recording_url,
-              oilChangePrice: postCallData.custom_analysis_data.oil_change_price,
-              soonestServiceAvailability: postCallData.custom_analysis_data.soonest_service_availability,
+              recordingUrl: statusUpdate.recordingUrl,
+              oilChangePrice: statusUpdate.oilChangePrice,
+              soonestServiceAvailability: statusUpdate.soonestServiceAppt
             }
   
             // Update results
