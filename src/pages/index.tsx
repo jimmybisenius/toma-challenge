@@ -1,13 +1,9 @@
 // pages/index.tsx
 
 import { useState } from 'react';
-import Retell from 'retell-sdk';
 import Head from 'next/head';
 import {phone} from 'phone';
-
-const client = new Retell({
-  apiKey: process.env.NEXT_PUBLIC_RETELL_API_KEY ?? '',
-});
+import axios from 'axios'
 
 type CallResults = {
   recordingUrl: string | undefined,
@@ -51,17 +47,12 @@ const Home = () => {
     // Reset previous result state
     setCallResults(undefined)
 
-    // Verify that the Retell API Key is available in environment variables
-    if (!process.env.NEXT_PUBLIC_RETELL_API_KEY) {
-      alert('Retell API Key not found, please add and try again.');
-      return;
-    }
-
     try {
       // Set loading state to true to indicate async operation is in progress
       setLoading(true);
 
       // Step 1: Initiate the call using Retell API
+      /*
       const createCallResponse = await client.call.createPhoneCall({
         from_number: '+19842134169',
         to_number: phone(formData.phone).phoneNumber ?? '',
@@ -72,6 +63,15 @@ const Home = () => {
           car_trim: formData.trim
         }
       });
+      */
+
+      const { data: createCallResponse } = await axios.post('/api/create-phone-call', {
+        phoneNumber: phone(formData.phone).phoneNumber ?? '',
+        year: formData.year,
+        make: formData.make,
+        model: formData.model,
+        trim: formData.trim
+      })
 
       // Extract the call ID from the response
       const callId = createCallResponse.call_id;
@@ -82,7 +82,10 @@ const Home = () => {
 
       while (callStatus !== 'ended' || !postCallData) {
         // Fetch the current status of the call
-        const statusResponse = await client.call.retrieve(callId);
+        // const statusResponse = await client.call.retrieve(callId);
+        const { data: statusResponse } = await axios.post('/api/get-call', {
+          callId
+        })
 
         // Update the call status
         callStatus = statusResponse.call_status;
