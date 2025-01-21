@@ -3,8 +3,20 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import client from '@/retell-client'
 import phone from 'phone';
+import db from '@/db'
+
+// Creates phone call in DB
+async function createPhoneCall(callId: string, phoneNumber: string): Promise<number> {
+  const [result] = await db.query(
+      'INSERT INTO phone_calls (call_id, phone_number) VALUES (?, ?)',
+      [callId, phoneNumber]
+  )
+  console.log(`Phone call created with id: ${result.insertId}`)
+  return result.insertId
+}
 
 
+// Runs on /api/create-phone-call
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed. Please use POST.' });
@@ -39,6 +51,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const callId = createCallResponse.call_id;
 
     // TODO: Create new call with details & callId in DB
+    await createPhoneCall(callId, validatedPhone.phoneNumber)
 
     // Respond with the call ID
     return res.status(200).json({ call_id: callId });

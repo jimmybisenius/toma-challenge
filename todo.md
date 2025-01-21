@@ -1,0 +1,25 @@
+- [x] Web form
+    - [x] Accepts car year, make, model, trim
+    - [x] Accepts store phone number
+    - [x] On submit, calls #, navigates to service using IVR (if reqd), and requests oil change price and soonest availability
+    - [x] After call, stores details in `phone_numbers`:
+        - [x] Target phone #
+        - [x] Transcript
+        - [x] Time spent on hold, in seconds
+        - [x] Sent to voicemail?
+        - [x] Oil change price
+        - [x] Soonest availability
+        - [x] Recording URL
+    - [ ] After call, show call details on screen
+        - [x] Oil change price
+        - [x] Soonest availability
+        - [ ] Transcript
+        - [x] Recording URL
+- [ ] Leaderboard
+    - [ ] Company Analysis
+        - [ ] Avg pick up rate
+        - [ ] Avg hold time
+        - [ ] All desired info collected in one call? (%)
+        - [ ] Overall ranking (1/10) (BONUS)
+        - [ ] Sort rows by overall ranking (BONUS)
+    - [ ] Call history table (Bonus)

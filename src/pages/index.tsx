@@ -9,7 +9,6 @@ type CallResults = {
   recordingUrl: string | undefined,
   oilChangePrice: string | undefined,
   soonestServiceAvailability: string | undefined,
-  holdTime: number | undefined
 }
 
 const Home = () => {
@@ -103,7 +102,6 @@ const Home = () => {
               recordingUrl: statusResponse.recording_url,
               oilChangePrice: postCallData.custom_analysis_data.oil_change_price,
               soonestServiceAvailability: postCallData.custom_analysis_data.soonest_service_availability,
-              holdTime: postCallData.custom_analysis_data.hold_time
             }
   
             // Update results
@@ -273,7 +271,6 @@ const Home = () => {
             <div className='flex flex-col items-center justify-start gap-1'>
               {callResults.oilChangePrice ? <p><b>Oil change price:</b> {callResults.oilChangePrice}</p> : <p>Oil change price not available.</p>}
               {callResults.soonestServiceAvailability ? <p><b>Soonest appointment:</b> {callResults.soonestServiceAvailability}</p> : <p>Availability not available.</p>}
-              {callResults.holdTime !== undefined ? <p>{callResults.holdTime === 0 ? 'No time spent on hold, hurray! 🎉' : <><b>Time spent on hold: </b>{callResults.holdTime} seconds</>}</p> : <p>Hold time not available.</p>}
             </div>
             {callResults.recordingUrl ? <a href={callResults.recordingUrl}>
               <button
