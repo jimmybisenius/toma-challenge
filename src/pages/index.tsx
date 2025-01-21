@@ -23,7 +23,7 @@ const Home = () => {
     make: 'Honda',
     model: 'Civic',
     trim: 'EX',
-    phone: '984-269-8841',
+    phone: '',
   });
 
   // Handler for input changes in the form fields
