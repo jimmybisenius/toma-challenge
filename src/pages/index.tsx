@@ -1,31 +1,40 @@
 // pages/index.tsx
 
 import { useState } from 'react';
-import axios from 'axios';
+import Retell from 'retell-sdk';
 import Head from 'next/head';
+import {phone} from 'phone';
+
+const client = new Retell({
+  apiKey: process.env.NEXT_PUBLIC_RETELL_API_KEY ?? '',
+});
+
+type CallResults = {
+  recordingUrl: string | undefined,
+  oilChangePrice: string | undefined,
+  soonestServiceAvailability: string | undefined,
+  holdTime: number | undefined
+}
 
 const Home = () => {
   // State to manage loading status during async operations
   const [loading, setLoading] = useState<boolean>(false);
+  const [callResults, setCallResults] = useState<CallResults | undefined>(undefined)
 
   // State to store form data inputs
   const [formData, setFormData] = useState({
-    year: '',
-    make: '',
-    model: '',
-    trim: '',
-    phone: '',
+    year: '2024',
+    make: 'Honda',
+    model: 'Civic',
+    trim: 'EX',
+    phone: '984-269-8841',
   });
 
-  // Handler form input changes 
+  // Handler for input changes in the form fields
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
 
-    if (name === 'phone') {
-      // For phone number, allow only digits, spaces, hyphens, parentheses, and plus sign
-      const phoneValue = value.replace(/[^0-9\s\-()+]/g, '');
-      setFormData({ ...formData, [name]: phoneValue });
-    } else if (name === 'year') {
+  if (name === 'year') {
       // For car year, restrict input to numbers only
       const yearValue = value.replace(/\D/g, '');
       setFormData({ ...formData, [name]: yearValue });
@@ -38,17 +47,13 @@ const Home = () => {
   // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const { phone } = formData;
-
-    // Replace with your Retell-managed callback number and email
-    const callbackNumber = '+19842134169';
-    const callbackEmail = 'jim@freddydog.com';
+    
+    // Reset previous result state
+    setCallResults(undefined)
 
     // Verify that the Retell API Key is available in environment variables
     if (!process.env.NEXT_PUBLIC_RETELL_API_KEY) {
-      alert(
-        'Retell API Key not found, please add and try again.'
-      );
+      alert('Retell API Key not found, please add and try again.');
       return;
     }
 
@@ -57,64 +62,61 @@ const Home = () => {
       setLoading(true);
 
       // Step 1: Initiate the call using Retell API
-      const createCallResponse = await axios.post(
-        '/v2/create-phone-call',
-        {
-          from_number: callbackNumber,
-          to_number: phone,
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${process.env.NEXT_PUBLIC_RETELL_API_KEY}`,
-            'Content-Type': 'application/json',
-          },
+      const createCallResponse = await client.call.createPhoneCall({
+        from_number: '+19842134169',
+        to_number: phone(formData.phone).phoneNumber ?? '',
+        retell_llm_dynamic_variables: {
+          car_year: formData.year,
+          car_make: formData.make,
+          car_model: formData.model,
+          car_trim: formData.trim
         }
-      );
+      });
 
       // Extract the call ID from the response
-      const callId = createCallResponse.data.call_id;
+      const callId = createCallResponse.call_id;
 
       // Step 2: Poll for call status and retrieve post-call data
       let callStatus = 'registered';
       let postCallData: any = null;
 
-      while (callStatus !== 'ended') {
+      while (callStatus !== 'ended' || !postCallData) {
         // Fetch the current status of the call
-        const statusResponse = await axios.get(`/v2/calls/${callId}`, {
-          headers: {
-            Authorization: `Bearer ${process.env.NEXT_PUBLIC_RETELL_API_KEY}`,
-          },
-        });
+        const statusResponse = await client.call.retrieve(callId);
 
         // Update the call status
-        callStatus = statusResponse.data.call_status;
+        callStatus = statusResponse.call_status;
 
-        if (callStatus === 'ended') {
+        if (callStatus === 'ended' || !postCallData) {
           // Retrieve post-call data once the call has ended
-          postCallData = statusResponse.data.post_call_data;
-          break;
+          postCallData = statusResponse.call_analysis;
+
+          if(postCallData) {
+             // Log status
+            console.log("Post call analysis complete")
+            console.log(postCallData)
+
+            const results: CallResults = {
+              recordingUrl: statusResponse.recording_url,
+              oilChangePrice: postCallData.custom_analysis_data.oil_change_price,
+              soonestServiceAvailability: postCallData.custom_analysis_data.soonest_service_availability,
+              holdTime: postCallData.custom_analysis_data.hold_time
+            }
+  
+            // Update results
+            setCallResults(results)
+            // Set loading false, restore form
+            setLoading(false)
+            // Only exit loop when both conditions are met
+            break;
+          }
         }
 
         // Wait for 2 seconds before polling again
-        await new Promise((resolve) => setTimeout(resolve, 2000));
+        await new Promise((resolve) => setTimeout(resolve, 5000));
+        console.log('Retrying...')
       }
 
-      // Set loading state to false as the operation is complete
-      setLoading(false);
-
-      if (postCallData) {
-        // Extract nearest service availability and oil change price from post-call data
-        const nearestService =
-          postCallData.soonest_service_availability || 'N/A';
-        const oilChangePrice = postCallData.oil_change_price || 'N/A';
-
-        // Display the results to the user
-        alert(`Nearest oil change is ${nearestService} for ${oilChangePrice}`);
-      }
-
-      // Log the audio playback URL for debugging or future reference
-      const audioPlaybackUrl = `https://your-domain.com/playback/${callId}`;
-      console.log(`Audio Playback URL: ${audioPlaybackUrl}`);
     } catch (error) {
       // Handle any errors during the call process
       console.error('Error during call process:', error);
@@ -141,7 +143,7 @@ const Home = () => {
           onSubmit={handleSubmit}
         >
           {/* Disable form fields when loading */}
-          <fieldset disabled={loading}>
+          { !loading ? <fieldset disabled={loading}>
             {/* Form Title */}
             <h2 className="text-black text-2xl font-bold mb-4 text-center tracking-tight">
               Jim's Mystery Shopper
@@ -237,7 +239,6 @@ const Home = () => {
                 name="phone"
                 id="phone"
                 required
-                pattern="^\\+?[0-9\\s\\-()]{10,15}$"
                 value={formData.phone}
                 onChange={handleChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring focus:border-blue-300"
@@ -249,13 +250,36 @@ const Home = () => {
 
             {/* Submit Button */}
             <button
+              disabled={loading}
               type="submit"
-              className="w-full bg-blue-500 text-white font-bold py-2 px-4 rounded-md hover:bg-blue-600 focus:outline-none focus:ring"
+              className="w-full text-white font-bold py-2 px-4 rounded-md focus:outline-none focus:ring bg-blue-500 hover:bg-blue-600"
             >
               Submit
             </button>
-          </fieldset>
+          </fieldset> : <div className='flex flex-col items-center p-6 gap-4'>
+            <img src="/loading.gif" className='w-10 h-10'/>
+            <p className='text-lg text-gray-600 tracking-tight font-medium'>Call in progress, please hold</p>
+          </div>}
         </form>
+        { /* Results */ }
+        {
+          /* If recordingUrl, assume call finished */
+          callResults ?
+          <div className='flex flex-col items-center justify-center gap-2'>
+            <p className='font-bold tracking-tight text-2xl text-black'>Call finished 🏁</p>
+            <div className='flex flex-col items-center justify-start gap-1'>
+              {callResults.oilChangePrice ? <p><b>Oil change price:</b> {callResults.oilChangePrice}</p> : <p>Oil change price not available.</p>}
+              {callResults.soonestServiceAvailability ? <p><b>Soonest appointment:</b> {callResults.soonestServiceAvailability}</p> : <p>Availability not available.</p>}
+              {callResults.holdTime !== undefined ? <p>{callResults.holdTime === 0 ? 'No time spent on hold, hurray! 🎉' : <><b>Time spent on hold: </b>{callResults.holdTime} seconds</>}</p> : <p>Hold time not available.</p>}
+            </div>
+            {callResults.recordingUrl ? <a href={callResults.recordingUrl}>
+              <button
+                type="submit"
+                className="w-full text-white font-bold py-2 px-4 rounded-md focus:outline-none focus:ring bg-gray-500 hover:bg-gray-400 mt-4"
+              >Download call recording</button>
+            </a> : <p>Call recording not available.</p>}
+          </div> : <></>
+        }
       </div>
     </>
   );
